@@ -5,7 +5,6 @@ import os
 import torch
 
 def distributed(opt, is_nocuda):
-    cluster = opt['cluster']
     world_size = 1
     local_size = 1
     rank = 0
