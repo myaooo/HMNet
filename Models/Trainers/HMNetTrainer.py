@@ -202,6 +202,7 @@ class HMNetTrainer(DistributedTrainer):
 
         self.log("Set up model ... ")
         self.set_up_model()
+        self.module.eval()
         if self.opt['rank'] == 0:
             self.log('-----------------------------------------------')
 
