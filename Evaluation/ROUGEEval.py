@@ -322,9 +322,9 @@ def predict(model, batches, max_sent_len, debug=False):
             y_tokens.extend(dev_batch["decoder_tokens"])
 
             if debug:
-                print("Encoder_tokens:", converted_encoder_tokens)
-                print("Decoder_tokens:", converted_decoder_tokens)
-                print("Predictions\n", converted_pred)
+                print("Encoder_tokens:", converted_encoder_tokens[0])
+                print("Decoder_tokens:", converted_decoder_tokens[0])
+                print("Predictions\n", converted_pred[0][0])
 
             if debug and j >= 10:
                 # in debug mode (decode first 10 batches)
