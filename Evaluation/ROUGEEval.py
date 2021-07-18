@@ -312,11 +312,19 @@ def predict(model, batches, max_sent_len, debug=False):
 
             beam_search_res = model(dev_batch, beam_search=True, max_sent_len=max_sent_len)
             pred = [[t[0] for t in x] if len(x) > 0 else [[]] for x in beam_search_res]
-            predictions.extend([[_convert_tokens_to_string(decoder_tokenizer, tt) for tt in t] for t in pred])
+            converted_pred = [[_convert_tokens_to_string(decoder_tokenizer, tt) for tt in t] for t in pred]
+            predictions.extend(converted_pred)
 
-            gts.extend([_convert_tokens_to_string(decoder_tokenizer, t) for t in dev_batch["decoder_tokens"]])
+            converted_encoder_tokens = [_convert_tokens_to_string(encoder_tokenizer, t) for t in dev_batch["encoder_tokens"]]
+            converted_decoder_tokens = [_convert_tokens_to_string(decoder_tokenizer, t) for t in dev_batch["decoder_tokens"]]
+            gts.extend(converted_decoder_tokens)
             x_tokens.extend(dev_batch["encoder_tokens"])
             y_tokens.extend(dev_batch["decoder_tokens"])
+
+            if debug:
+                print("Encoder_tokens:", converted_encoder_tokens)
+                print("Decoder_tokens:", converted_decoder_tokens)
+                print("Predictions\n", converted_pred)
 
             if debug and j >= 10:
                 # in debug mode (decode first 10 batches)
