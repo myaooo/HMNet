@@ -13,6 +13,7 @@ from mpi4py import MPI
 import torch
 import logging
 import json
+import tqdm
 
 def write_json_res(output_file, tokenizers, x_ids, y_ids, x_tokens, y_tokens, predictions, gts):
     data = []
@@ -165,23 +166,7 @@ class ROUGEEval():
         else:
             assert False, f"len(module.tokenizer) > 2"
 
-        with torch.no_grad():
-            for j, dev_batch in enumerate(dev_batches):
-                for b in dev_batch:
-                    if torch.is_tensor(dev_batch[b]):
-                        dev_batch[b] = dev_batch[b].to(self.opt['device'])
-
-                beam_search_res = module(dev_batch, beam_search=True, max_sent_len=max_sent_len)
-                pred = [[t[0] for t in x] if len(x) > 0 else [[]] for x in beam_search_res]
-                predictions.extend([[self._convert_tokens_to_string(decoder_tokenizer, tt) for tt in t] for t in pred])
-
-                gts.extend([self._convert_tokens_to_string(decoder_tokenizer, t) for t in dev_batch["decoder_tokens"]])
-                x_tokens.extend(dev_batch["encoder_tokens"])
-                y_tokens.extend(dev_batch["decoder_tokens"])
-
-                if ("DEBUG" in self.opt and j >=10) or j >= self.eval_batches_num:
-                    # in debug mode (decode first 10 batches) ortherwise decode first self.eval_batches_num bathes
-                    break
+        predictions, x_tokens, y_tokens, gts = predict(module, dev_batches, max_sent_len=max_sent_len, debug="DEBUG" in self.opt)
 
         # use MPI to gather results from all processes / GPUs
         # the result of the gather operation is a list of sublists
@@ -281,3 +266,60 @@ class ROUGEEval():
         r.model_filename_pattern = '[A-Z].#ID#_gt.txt'
         results = r.output_to_dict(r.convert_and_evaluate())
         return results
+
+
+def _get_module_tokenizer(module):
+    if not isinstance(module.tokenizer, list):
+        encoder_tokenizer = module.tokenizer 
+        decoder_tokenizer = module.tokenizer
+    elif len(module.tokenizer) == 1:
+        encoder_tokenizer = module.tokenizer[0]
+        decoder_tokenizer = module.tokenizer[0]
+    elif len(module.tokenizer) == 2:
+        encoder_tokenizer = module.tokenizer[0]
+        decoder_tokenizer = module.tokenizer[1]
+    else:
+        assert False, f"len(module.tokenizer) > 2"
+    return encoder_tokenizer, decoder_tokenizer
+
+
+def _convert_tokens_to_string(tokenizer, tokens, eval_tokenized=True, eval_lowercase=True):
+    if eval_tokenized:
+        tokens = [t for t in tokens if t not in tokenizer.all_special_tokens]
+    if eval_lowercase:
+        tokens = [t.lower() for t in tokens]
+    if eval_tokenized:
+        return ' '.join(tokens)
+    else:
+        return tokenizer.decode(tokenizer.convert_tokens_to_ids(tokens), skip_special_tokens=True)
+
+
+def predict(model, batches, max_sent_len, debug=False):
+
+    predictions = [] # prediction of tokens from model
+    x_tokens = [] # input tokens
+    y_tokens = [] # groundtruths tokens
+    gts = [] # groundtruths string
+
+    device = next(model.parameters()).device
+    encoder_tokenizer, decoder_tokenizer = _get_module_tokenizer(model)
+
+    with torch.no_grad():
+        for j, dev_batch in enumerate(tqdm.tqdm(batches)):
+            for b in dev_batch:
+                if torch.is_tensor(dev_batch[b]):
+                    dev_batch[b] = dev_batch[b].to(device=device)
+
+            beam_search_res = model(dev_batch, beam_search=True, max_sent_len=max_sent_len)
+            pred = [[t[0] for t in x] if len(x) > 0 else [[]] for x in beam_search_res]
+            predictions.extend([[_convert_tokens_to_string(decoder_tokenizer, tt) for tt in t] for t in pred])
+
+            gts.extend([_convert_tokens_to_string(decoder_tokenizer, t) for t in dev_batch["decoder_tokens"]])
+            x_tokens.extend(dev_batch["encoder_tokens"])
+            y_tokens.extend(dev_batch["decoder_tokens"])
+
+            if debug and j >= 10:
+                # in debug mode (decode first 10 batches)
+                break
+    
+    return predictions, x_tokens, y_tokens, gts

@@ -22,7 +22,7 @@ class DistributedTrainer(BaseTrainer):
         np.random.seed(self.seed)
         torch.manual_seed(self.seed)
 
-        self.opt['device'], _, self.opt['world_size'], self.opt['local_size'], self.opt['rank'], self.opt['local_rank'], _, self.opt['run'] = distributed(opt, not self.use_cuda)
+        self.opt['device'], self.opt['n_gpu'], self.opt['world_size'], self.opt['local_size'], self.opt['rank'], self.opt['local_rank'], _, self.opt['run'] = distributed(opt, not self.use_cuda)
 
         self.getSaveFolder()
         self.opt['logFile'] = f"log_{self.opt['rank']}.txt"
@@ -39,7 +39,7 @@ class DistributedTrainer(BaseTrainer):
 
         # ddp: print stats and update learning rate
         if self.opt['rank'] == 0:
-            print('Number of GPUs is', bcolors.OKGREEN, self.opt['world_size'], bcolors.ENDC)
+            print('Number of GPUs is', bcolors.OKGREEN, self.opt['n_gpu'], bcolors.ENDC)
             # print('Boost learning rate from', bcolors.OKGREEN, self.opt['START_LEARNING_RATE'], bcolors.ENDC, 'to',
             #     bcolors.OKGREEN, self.opt['START_LEARNING_RATE'] * self.opt['world_size'], bcolors.ENDC)
             print('Effective batch size is increased from', bcolors.OKGREEN, self.opt['MINI_BATCH'], bcolors.ENDC, 'to',

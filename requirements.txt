@@ -1,0 +1,9 @@
+torch~=1.2
+mpi4py
+tokenizers
+boto3
+numpy
+tensorboard
+tqdm
+filelock
+spacy~=2.1

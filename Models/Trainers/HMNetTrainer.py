@@ -199,12 +199,15 @@ class HMNetTrainer(DistributedTrainer):
             assert self.module is self.network.model
 
     def eval(self):
+
+        self.log("Set up model ... ")
+        self.set_up_model()
         if self.opt['rank'] == 0:
             self.log('-----------------------------------------------')
-            self.log("Evaluating model ... ")
-        self.set_up_model()
 
         for eval_dataset in ['dev', 'test']:
+            self.log(f"Evaluating model on {eval_dataset} ")
+
             batch_generator_eval = self.get_batch_generator(eval_dataset)
 
             self.task.evaluator.reset_best_score(set_high=True)

@@ -82,7 +82,11 @@ class MeetingNet_Transformer(nn.Module):
         torch.save(params, os.path.join(save_dir, 'model.pt'))
 
     def from_pretrained(self, load_dir):
-        checkpoint = torch.load(os.path.join(load_dir, 'model.pt'), map_location=torch.device('cuda', self.opt['local_rank']))
+        if self.use_cuda:
+            device = torch.device('cuda', self.opt['local_rank'])
+        else:
+            device = torch.device('cpu')
+        checkpoint = torch.load(os.path.join(load_dir, 'model.pt'), map_location=device)
         state_dict = checkpoint['state_dict']
         
         self.load_state_dict(state_dict['network'])

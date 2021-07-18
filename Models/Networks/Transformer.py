@@ -129,7 +129,9 @@ class Attention(nn.Module):
         assert n_state % n_head == 0
         # if mask is needed, uncomment this
         self.maxlen = 2048 # beyond this scale 
-        self.mask = Variable(torch.tril(torch.ones(self.maxlen, self.maxlen)).view(1, 1, self.maxlen, self.maxlen), requires_grad=False).cuda()
+        self.mask = Variable(torch.tril(torch.ones(self.maxlen, self.maxlen)).view(1, 1, self.maxlen, self.maxlen), requires_grad=False)
+        if opt["cuda"]:
+            self.mask = self.mask.cuda()
         self.n_head = n_head
         self.c_proj = Conv1D(n_state, nx)
         self.attn_dropout = nn.Dropout(attn_pdrop)
@@ -155,9 +157,9 @@ class Attention(nn.Module):
         mask = None
         if one_dir_visible: # mask "seeing the future"
             if w.size(-2) <= self.maxlen and w.size(-1) <= self.maxlen:
-                mask = self.mask[:, :, :w.size(-2), :w.size(-1)].cuda()
+                mask = self.mask[:, :, :w.size(-2), :w.size(-1)]
             else:
-                mask = Variable(torch.tril(torch.ones(w.size(-2), w.size(-1))).view(1, 1, w.size(-2), w.size(-1)), requires_grad=False).cuda()
+                mask = Variable(torch.tril(torch.ones(w.size(-2), w.size(-1), device=w.device)).view(1, 1, w.size(-2), w.size(-1)), requires_grad=False)
 
         if x_mask is not None:
             mask = x_mask.unsqueeze(1).unsqueeze(1).expand_as(w).float()
@@ -384,8 +386,8 @@ class Embedder(nn.Module):
         x_emb = self.embed(x)
         batch_size = x.shape[0]
         x_len = x.shape[1]
-        x_pos = self.pos_emb(torch.arange(x_len).type(torch.cuda.FloatTensor)) # len x n_state
-        x_pos = Variable(x_pos.unsqueeze(0).repeat(batch_size, 1, 1), requires_grad=False).cuda()
+        x_pos = self.pos_emb(torch.arange(x_len, dtype=torch.float, device=x_emb.device)) # len x n_state
+        x_pos = Variable(x_pos.unsqueeze(0).repeat(batch_size, 1, 1), requires_grad=False)
         x_input = x_emb + x_pos
         h = self.drop(x_input)
         return h
@@ -420,7 +422,7 @@ class TransformerEncoder(nn.Module):
     '''
     def forward(self, x, z=None):
         x_mask = ~x.eq(0) # 1 is PAD_id
-        x_mask = x_mask.type(torch.cuda.FloatTensor)
+        x_mask = x_mask.to(torch.float)
             
         h = self.embedder(x)
         if z is not None:
@@ -474,7 +476,7 @@ class TransformerDecoder(nn.Module):
             # enc_value: batch x encoder_len x n_state
 
             x_mask = ~x.eq(0) # 1 is PAD_id
-            x_mask = x_mask.type(torch.cuda.FloatTensor)
+            x_mask = x_mask.to(torch.float)
         else:
             enc_key = None
             enc_value = None
@@ -604,7 +606,7 @@ class TransformerBeam():
                 x_outs.extend([x_out[idx, :, :].unsqueeze(0) for node in last_nodes[idx]])
                 xs.extend([x[idx, :].unsqueeze(0) for node in last_nodes[idx]])
 
-            ys = Variable(torch.LongTensor(ys)).cuda() # N x l
+            ys = Variable(torch.LongTensor(ys, device=x_outs.device)) # N x l
             x_outs = torch.cat(x_outs, dim = 0) # N x x_len x n_state
             xs = torch.cat(xs, dim = 0) # N x x_len
             probs = self.decoder(xs, x_outs, ys)
